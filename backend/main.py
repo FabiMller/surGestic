@@ -5,7 +5,7 @@ import os
 
 app = FastAPI()
 
-# active CORS settings to allow requests from the frontend
+# CORS configuration for the React frontend (Port 5173)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -14,12 +14,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# global state to keep track of the current slice index
+# Global system state tracking
 state = {
-    "current_index": 0
+    "current_index": 0,
+    "is_voice_active": False,
+    "mic_level": 0
 }
 
-# define the path to the CT images directory
+# Path to the CT images directory
 CT_DIR = os.path.join("..", "frontend", "public", "ct")
 
 def get_ct_files():
@@ -29,37 +31,50 @@ def get_ct_files():
 
 class SliceUpdate(BaseModel):
     index: int
+    is_voice_active: bool = False
+    mic_level: int = 0
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Steriler OP-Assistent API läuft perfekt!"}
-
+    return {"status": "online", "message": "Sterile OR Assistant API is running perfectly."}
 
 @app.get("/current-slice")
 def get_current_slice():
     files = get_ct_files()
     if not files:
-        raise HTTPException(status_code=444, detail="Keine CT-Bilder im Assets-Ordner gefunden.")
+        raise HTTPException(status_code=444, detail="No CT images found in the assets folder.")
     
-    # ensure the index is within bounds
     idx = max(0, min(state["current_index"], len(files) - 1))
     slice_name = files[idx]
     
-    # return the current slice information.
     return {
         "index": idx,
         "slice_name": slice_name,
         "image_url": f"/ct/{slice_name}",
-        "all_slices": files  # return the full list of slices for the frontend to use
+        "all_slices": files,
+        "is_voice_active": state["is_voice_active"],
+        "mic_level": state["mic_level"]
     }
 
-# API endpoint to update the current slice index
 @app.post("/update-slice")
 def update_slice(data: SliceUpdate):
     files = get_ct_files()
     if data.index < 0 or data.index >= len(files):
-        raise HTTPException(status_code=400, detail="Index außerhalb des gültigen Bereichs")
+        raise HTTPException(status_code=400, detail="Index out of range")
     
     state["current_index"] = data.index
-    print(f"[API] Index aktualisiert auf: {data.index} ({files[data.index]})")
-    return {"status": "success", "updated_index": state["current_index"]}
+    state["is_voice_active"] = data.is_voice_active
+    state["mic_level"] = data.mic_level
+
+    # Server-side terminal logging
+    if data.is_voice_active:
+        print(f"[API] Slice: {data.index} | 🎙️ REC | Level: {data.mic_level}%")
+    else:
+        print(f"[API] Slice: {data.index} | 💤 STANDBY")
+
+    return {
+        "status": "success", 
+        "updated_index": state["current_index"],
+        "is_voice_active": state["is_voice_active"],
+        "mic_level": state["mic_level"]
+    }

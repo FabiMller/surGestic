@@ -4,13 +4,17 @@ function App() {
   const [currentSlice, setCurrentSlice] = useState({ index: 0, imageUrl: '', sliceName: '' });
   const [allSlices, setAllSlices] = useState([]);
   const [backendError, setBackendError] = useState(false);
+  const [isVoiceActive, setIsVoiceActive] = useState(false); 
+  const [micLevel, setMicLevel] = useState(0); 
+  
   const thumbnailRefs = useRef({});
 
+  // API polling at an accelerated 50ms interval for low-latency updates
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const response = await fetch('http://127.0.0.1:8000/current-slice');
-        if (!response.ok) throw new Error('API Fehler');
+        if (!response.ok) throw new Error('API Error');
         
         const data = await response.json();
         
@@ -23,16 +27,21 @@ function App() {
           imageUrl: data.image_url,
           sliceName: data.slice_name
         });
+        
+        setIsVoiceActive(!!data.is_voice_active);
+        setMicLevel(data.mic_level || 0); 
         setBackendError(false);
       } catch (error) {
         setBackendError(true);
+        setIsVoiceActive(false);
+        setMicLevel(0);
       }
-    }, 100);
+    }, 50);
 
     return () => clearInterval(interval);
   }, []);
 
-  // automatic scroll to the active thumbnail in the sidebar when the current slice changes
+  // Automatic sidebar scrolling to keep the active thumbnail visible
   useEffect(() => {
     if (thumbnailRefs.current[currentSlice.index]) {
       thumbnailRefs.current[currentSlice.index].scrollIntoView({
@@ -42,7 +51,6 @@ function App() {
     }
   }, [currentSlice.index]);
 
-  // Styles for the components
   const styles = {
     container: {
       backgroundColor: '#05070f',
@@ -122,11 +130,57 @@ function App() {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    activeImage: {
+    imageContainer: {
+      position: 'relative',
       maxHeight: '92vh',
       maxWidth: '95%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    activeImage: {
+      maxHeight: '92vh',
+      maxWidth: '100%',
       objectFit: 'contain',
       display: 'block',
+    },
+    gridOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gridTemplateRows: 'repeat(4, 1fr)',
+      pointerEvents: 'none',
+    },
+    gridCell: {
+      position: 'relative',
+      borderRight: '1px solid rgba(255, 255, 255, 0.15)',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+    },
+    rowLabel: {
+      position: 'absolute',
+      left: '10px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      fontSize: '0.85rem',
+      fontWeight: 'bold',
+      color: 'rgba(56, 189, 248, 0.9)', 
+      fontFamily: 'monospace',
+      textShadow: '1px 1px 3px #000',
+    },
+    colLabel: {
+      position: 'absolute',
+      bottom: '10px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: '0.85rem',
+      fontWeight: 'bold',
+      color: 'rgba(56, 189, 248, 0.9)',
+      fontFamily: 'monospace',
+      textShadow: '1px 1px 3px #000',
     },
     metaOverlay: {
       position: 'absolute',
@@ -138,11 +192,19 @@ function App() {
       color: '#38bdf8',
       lineHeight: '1.4',
       textShadow: '1px 1px 2px #000',
+      zIndex: 10,
     },
-    statusLedContainer: {
+    rightStatusContainer: {
       position: 'absolute',
       top: '20px',
       right: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-end',
+      gap: '8px',
+      zIndex: 10,
+    },
+    statusLedContainer: {
       display: 'flex',
       alignItems: 'center',
       gap: '8px',
@@ -162,12 +224,51 @@ function App() {
       backgroundColor: backendError ? '#ef4444' : '#10b981',
       boxShadow: backendError ? '0 0 10px #ef4444' : '0 0 10px #10b981',
       transition: 'background-color 0.3s ease',
+    },
+    micHud: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      backgroundColor: 'rgba(12, 15, 29, 0.85)',
+      padding: '6px 14px',
+      borderRadius: '20px',
+      border: isVoiceActive ? '1px solid #ef4444' : '1px solid #1e293b',
+      boxShadow: isVoiceActive ? '0 0 12px rgba(239, 68, 68, 0.4)' : 'none',
+      backdropFilter: 'blur(4px)',
+      width: '150px',
+      boxSizing: 'border-box',
+      transition: 'all 0.2s ease',
+    },
+    micLabel: {
+      fontSize: '0.7rem',
+      fontFamily: 'monospace',
+      color: isVoiceActive ? '#ef4444' : '#64748b', 
+      fontWeight: 'bold',
+      transition: 'all 0.2s ease',
+    },
+    micBarContainer: {
+      flex: 1,
+      height: '6px',
+      backgroundColor: '#1e293b',
+      borderRadius: '3px',
+      overflow: 'hidden',
+    },
+    micBarFill: {
+      height: '100%',
+      width: `${isVoiceActive ? Math.min(micLevel * 4, 100) : 0}%`, 
+      backgroundColor: '#ef4444', 
+      boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
+      // Smooth CSS transitions bridge the gap between rapid API polls
+      transition: 'width 0.15s ease-out', 
     }
   };
 
+  const columns = ['A', 'B', 'C', 'D'];
+  const rows = ['4', '3', '2', '1'];
+
   return (
     <div style={styles.container}>
-      {/* LINKSEITE: Rechteckige Miniaturansichten untereinander */}
+      {/* SIDEBAR: Thumbnails */}
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>CT Slices ({allSlices.length})</div>
         {allSlices.map((sliceName, idx) => {
@@ -189,47 +290,82 @@ function App() {
                   ...(isActive ? styles.thumbnailImgActive : {}),
                 }}
               />
-              {/* Zweistellige Formatierung in JavaScript korrigiert */}
               <div style={styles.thumbnailLabel}># {String(idx).padStart(2, '0')}</div>
             </div>
           );
         })}
       </div>
 
-      {/* RECHTS / MITTE: Haupt-OP-Monitor */}
+      {/* MONITOR AREA */}
       <div style={styles.mainContent}>
-        {/* Medizinische Metadaten oben links */}
         <div style={styles.metaOverlay}>
           <div>CURRENT VIEW</div>
           <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 'bold' }}>
-            {currentSlice.sliceName || 'Warte auf Signal...'}
+            {currentSlice.sliceName || 'Waiting for signal...'}
           </div>
           <div style={{ color: '#64748b', marginTop: '5px' }}>
             INDEX: {currentSlice.index}<br />
             MODE: MPR 2D<br />
-            ZOOM: FIT
+            GRID: 4x4 (A1-D4)
           </div>
         </div>
 
-        {/* Server Status LED oben rechts */}
-        <div style={styles.statusLedContainer}>
-          <div style={styles.statusLed}></div>
-          <span style={{ color: backendError ? '#ef4444' : '#10b981' }}>
-            {backendError ? 'SERVER DISCONNECTED' : 'SERVER ONLINE'}
-          </span>
+        <div style={styles.rightStatusContainer}>
+          <div style={styles.statusLedContainer}>
+            <div style={styles.statusLed}></div>
+            <span style={{ color: backendError ? '#ef4444' : '#10b981' }}>
+              {backendError ? 'SERVER DISCONNECTED' : 'SERVER ONLINE'}
+            </span>
+          </div>
+
+          <div style={styles.micHud}>
+            <span style={styles.micLabel}>{isVoiceActive ? 'REC' : 'MIC'}</span>
+            <div style={styles.micBarContainer}>
+              <div style={styles.micBarFill}></div>
+            </div>
+          </div>
         </div>
 
-        {/* Das große ausgewählte Hauptbild */}
+        {/* CT image with cleaned 4x4 chessboard grid */}
         {currentSlice.imageUrl ? (
-          <img
-            src={currentSlice.imageUrl}
-            alt="Ausgewähltes CT Bild"
-            style={styles.activeImage}
-            key={currentSlice.index} // 🔥 Das 'key' Attribut zwingt React das Bild sofort neu zu rendern!
-          />
+          <div style={styles.imageContainer}>
+            <img
+              src={currentSlice.imageUrl}
+              alt="Active CT Slice"
+              style={styles.activeImage}
+              key={currentSlice.index}
+            />
+            <div style={styles.gridOverlay}>
+              {rows.map((row, rowIndex) =>
+                columns.map((col, colIndex) => {
+                  const isRightEdge = col === 'D';
+                  const isBottomEdge = row === '4';
+                  
+                  // Row labels (1-4) on the left edge only
+                  const showRowLabel = colIndex === 0;
+                  // Column labels (A-D) on the bottom edge only
+                  const showColLabel = rowIndex === 3;
+
+                  return (
+                    <div
+                      key={`${col}${row}`}
+                      style={{
+                        ...styles.gridCell,
+                        borderRight: isRightEdge ? 'none' : styles.gridCell.borderRight,
+                        borderBottom: isBottomEdge ? 'none' : styles.gridCell.borderBottom,
+                      }}
+                    >
+                      {showRowLabel && <span style={styles.rowLabel}>{row}</span>}
+                      {showColLabel && <span style={styles.colLabel}>{col}</span>}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         ) : (
           <div style={{ color: '#475569', fontSize: '1.2rem', letterSpacing: '1px' }}>
-            KEIN BILDSTREAMSIGNAL
+            NO IMAGE STREAM SIGNAL
           </div>
         )}
       </div>

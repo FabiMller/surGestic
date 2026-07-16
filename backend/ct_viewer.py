@@ -3,22 +3,28 @@ import sys
 import time
 import math
 import cv2
+import json
+import sounddevice as sd
+import queue
 import mediapipe as mp
 import requests
+import numpy as np
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
+from vosk import Model, KaldiRecognizer
 
 API_URL = "http://127.0.0.1:8000/update-slice"
-ct_dir = os.path.join("..", "frontend", "public", "ct")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+ct_dir = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "frontend", "public", "ct"))
 
 if not os.path.exists(ct_dir):
-    print(f"Fehler: Ordner '{ct_dir}' nicht gefunden!")
+    print(f"Error: Folder '{ct_dir}' not found!")
     sys.exit(1)
 
-# Einlesen aller Bilder (nur .png wie in main.py gefordert!)
 ct_files = sorted([f for f in os.listdir(ct_dir) if f.endswith('.png')])
 if not ct_files:
-    print(f"Fehler: Keine .png Bilder im Ordner '{ct_dir}' gefunden!")
+    print(f"Error: No .png images found in folder '{ct_dir}'!")
     sys.exit(1)
 
 current_slice_idx = 0
@@ -32,22 +38,65 @@ HAND_CONNECTIONS = [
     (0, 17)
 ]
 
-def send_index_to_api(idx):
+vosk_model = None
+recognizer = None
+model_path = os.path.join(SCRIPT_DIR, "vosk-model-small-en-us-0.15")
+
+try:
+    if os.path.exists(model_path):
+        vosk_model = Model(model_path) 
+        allowed_words = ["a", "b", "c", "d", "1", "2", "3", "4", "one", "two", "three", "four"]
+        recognizer = KaldiRecognizer(vosk_model, 16000, json.dumps(allowed_words))
+        print("✔ VOSK Speech Recognition (Small Model) successfully loaded.")
+    else:
+        print(f"\n❌ [VOSK NOTICE] Model folder not found at:\n   '{model_path}'")
+        print("-> Microphone levels will still work during double-pinch, text recognition is in standby.\n")
+except Exception as e:
+    print(f"\n[VOSK WARNING] Error loading model: {e}\n")
+
+audio_queue = queue.Queue()
+
+def audio_callback(indata, frames, time_info, status):
+    if status:
+        print(status, file=sys.stderr)
+    audio_queue.put(bytes(indata))
+
+def send_index_to_api(idx, is_voice_active=False, mic_level=0):
     try:
-        # send index to FastAPI backend
-        requests.post(API_URL, json={"index": idx}, timeout=0.2)
-    except requests.exceptions.RequestException as e:
-        print(f"[API-FEHLER] Konnte Index nicht senden: {e}")
+        requests.post(
+            API_URL, 
+            json={
+                "index": idx, 
+                "is_voice_active": is_voice_active,
+                "mic_level": int(mic_level)
+            }, 
+            timeout=0.1
+        )
+    except requests.exceptions.RequestException:
+        pass
+
+number_mapping = {"one": "1", "two": "2", "three": "3", "four": "4"}
+
+def process_voice_input(text):
+    words = text.split()
+    if len(words) >= 2:
+        col = words[0].lower()
+        row = words[1].lower()
+        row = number_mapping.get(row, row)
+        if col in ["a", "b", "c", "d"] and row in ["1", "2", "3", "4"]:
+            print(f"🎙️ [VOICE COMMAND] Grid recognized: {col.upper()}{row}")
 
 def main():
     global current_slice_idx
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Fehler: Kamera konnte nicht geöffnet werden.")
+        print("Error: Camera could not be opened.")
         return
 
+    task_path = os.path.join(SCRIPT_DIR, "hand_landmarker.task")
     options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=os.path.join(os.path.dirname(__file__), "hand_landmarker.task")),        running_mode=RunningMode.VIDEO,
+        base_options=BaseOptions(model_asset_path=task_path),
+        running_mode=RunningMode.VIDEO,
         num_hands=1,
         min_hand_detection_confidence=0.6,
         min_tracking_confidence=0.6,
@@ -58,7 +107,44 @@ def main():
     cooldown_seconds = 0.4
     start_time = time.time()
 
-    print("🚀 Gesture control active. Pinch and move your hand CLEARLY up or down.")
+    last_pinch_time = 0.0
+    double_pinch_window = 0.4
+    is_voice_active = False
+    was_pinching = False
+
+    last_api_send_time = 0.0
+    API_SEND_INTERVAL = 0.05  
+    smoothed_mic_level = 0.0
+
+    selected_device_id = None
+    try:
+        default_input = sd.query_devices(kind='input')
+        selected_device_id = default_input['index']
+        print(f"✔ Microphone active: '{default_input['name']}'")
+    except Exception:
+        devices = sd.query_devices()
+        for idx, dev in enumerate(devices):
+            if dev['max_input_channels'] > 0:
+                selected_device_id = idx
+                print(f"✔ Fallback microphone active: '{dev['name']}'")
+                break
+
+    audio_stream = None
+    if selected_device_id is not None:
+        try:
+            audio_stream = sd.RawInputStream(
+                device=selected_device_id, 
+                samplerate=16000, 
+                blocksize=4000,
+                dtype='int16',
+                channels=1, 
+                callback=audio_callback
+            )
+            audio_stream.start()
+        except Exception as e:
+            print(f"❌ Audio Error: {e}")
+
+    print("🚀 Gesture control active. HOLD double-pinch for voice input.")
 
     with HandLandmarker.create_from_options(options) as landmarker:
         while cap.isOpened():
@@ -78,75 +164,139 @@ def main():
             
             if not detection_result.hand_landmarks:
                 last_y = None
+                if is_voice_active:
+                    is_voice_active = False
+                    print("🎙️ Voice control stopped (Hand lost).")
+                    send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
+
+            hand_is_currently_pinching = False
 
             if detection_result.hand_landmarks:
                 for hand_landmarks in detection_result.hand_landmarks:
                     points = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
                     
-                    # White lines between landmarks for better visualization
                     for start_idx, end_idx in HAND_CONNECTIONS:
                         cv2.line(frame, points[start_idx], points[end_idx], (255, 255, 255), 2)
 
-                    # get the thumb tip and index finger tip
                     thumb_tip = hand_landmarks[4]
                     index_tip = hand_landmarks[8]
 
                     distance = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-                    is_pinching = distance < 0.05  
+                    is_pinching = distance < 0.05
+                    hand_is_currently_pinching = is_pinching
 
-                    # Draw landmarks with different colors based on pinching state
+                    if is_pinching and not was_pinching:
+                        time_since_last = current_time - last_pinch_time
+                        if time_since_last < double_pinch_window and audio_stream is not None:
+                            is_voice_active = True
+                            last_y = None  
+                            audio_queue.queue.clear()
+                            print("🎙️ Listening (e.g. 'A 4')...")
+                            send_index_to_api(current_slice_idx, is_voice_active=True, mic_level=0)
+                        last_pinch_time = current_time
+
+                    was_pinching = is_pinching
+
                     for idx, point in enumerate(points):
-                        # change color from green to red for index finger tip and thumb tip when pinching
-                        if is_pinching and idx in [4, 8]:
+                        if is_voice_active:
+                            color = (255, 0, 0)
+                            radius = 7 if idx in [4, 8] else 4
+                        elif is_pinching and idx in [4, 8]:
                             color = (0, 0, 255)
                             radius = 7
                         else:
                             color = (0, 255, 0)
                             radius = 4
-                            
                         cv2.circle(frame, point, radius, color, -1)
 
                     current_y = index_tip.y
                     
-                    # only process the gesture if the hand is pinching
-                    if is_pinching:
+                    if is_pinching and not is_voice_active:
                         if last_y is not None and (current_time - last_action_time > cooldown_seconds):
                             y_diff = current_y - last_y
-                            
-                            # Check for significant vertical movement
                             if y_diff < -0.04:
                                 if current_slice_idx > 0: 
                                     current_slice_idx -= 1
                                 else: 
                                     current_slice_idx = len(ct_files) - 1
                                 last_action_time = current_time
-                                print(f"<- Vorheriger Slice (Wisch OBEN): {ct_files[current_slice_idx]}")
-                                send_index_to_api(current_slice_idx)
+                                print(f"<- Previous slice (Swipe UP): {ct_files[current_slice_idx]}")
+                                send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                                     
-                            elif y_diff > 0.04:  # Check for downward movement
+                            elif y_diff > 0.04:
                                 if current_slice_idx < len(ct_files) - 1: 
                                     current_slice_idx += 1
                                 else: 
                                     current_slice_idx = 0
                                 last_action_time = current_time
-                                print(f"-> Nächster Slice (Wisch UNTEN): {ct_files[current_slice_idx]}")
-                                send_index_to_api(current_slice_idx)
+                                print(f"-> Next slice (Swipe DOWN): {ct_files[current_slice_idx]}")
+                                send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                         
                         last_y = current_y
-                    else:
+                    elif not is_pinching:
                         last_y = None
 
-            # Lokale Fenster
+            current_mic_level = 0
+
+            if audio_stream:
+                if is_voice_active:
+                    amplitudes = []
+                    
+                    while not audio_queue.empty():
+                        data = audio_queue.get()
+                        audio_data = np.frombuffer(data, dtype=np.int16)
+                        if len(audio_data) > 0:
+                            mean_amp = np.mean(np.abs(audio_data))
+                            amplitudes.append(mean_amp)
+                        
+                        if recognizer and recognizer.AcceptWaveform(data):
+                            result = json.loads(recognizer.Result())
+                            process_voice_input(result.get("text", ""))
+                    
+                    if amplitudes:
+                        max_amplitude = max(amplitudes)
+                        scaled_val = (max_amplitude / 1500.0) * 100.0
+                        current_mic_level = max(5, min(int(scaled_val), 100))
+                    else:
+                        current_mic_level = 0
+
+                    alpha = 0.25 
+                    
+                    if current_mic_level > smoothed_mic_level:
+                        smoothed_mic_level = smoothed_mic_level + 0.5 * (current_mic_level - smoothed_mic_level)
+                    else:
+                        smoothed_mic_level = smoothed_mic_level + alpha * (current_mic_level - smoothed_mic_level)
+                    
+                    if current_time - last_api_send_time >= API_SEND_INTERVAL:
+                        send_index_to_api(current_slice_idx, is_voice_active=True, mic_level=int(smoothed_mic_level))
+                        last_api_send_time = current_time
+                else:
+                    while not audio_queue.empty():
+                        audio_queue.get()
+                    smoothed_mic_level = 0.0
+
+            if is_voice_active and not hand_is_currently_pinching:
+                is_voice_active = False
+                smoothed_mic_level = 0.0
+                if recognizer:
+                    result = json.loads(recognizer.Result())
+                    process_voice_input(result.get("text", ""))
+                print("🎙️ Voice control stopped.")
+                send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
+
             active_ct_path = os.path.join(ct_dir, ct_files[current_slice_idx])
             ct_image = cv2.imread(active_ct_path)
             
-            cv2.imshow('Kamera-Feed (Gesten-Erkennung)', frame)
+            cv2.imshow('Kamera-Feed (OP-Gesten)', frame)
             if ct_image is not None:
-                cv2.imshow('Steriler OP-Monitor (CT Viewer)', ct_image)
+                cv2.imshow('Steriler Monitor (CT-Viewer)', ct_image)
             
             if cv2.waitKey(1) & 0xFF == ord('q'): 
                 break
 
+    if audio_stream:
+        audio_stream.stop()
+        audio_stream.close()
     cap.release()
     cv2.destroyAllWindows()
 
