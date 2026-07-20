@@ -28,6 +28,14 @@ if not ct_files:
     sys.exit(1)
 
 current_slice_idx = 0
+interaction = {
+    "selected_cell": None,
+    "zoom_level": 1.0,
+    "offset_x": 0.0,
+    "offset_y": 0.0,
+    "zoom_origin_x": 50.0,
+    "zoom_origin_y": 50.0,
+}
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),           # Thumb
@@ -45,7 +53,7 @@ model_path = os.path.join(SCRIPT_DIR, "vosk-model-small-en-us-0.15")
 try:
     if os.path.exists(model_path):
         vosk_model = Model(model_path) 
-        allowed_words = ["a", "b", "c", "d", "1", "2", "3", "4", "one", "two", "three", "four"]
+        allowed_words = ["a", "b", "c", "d", "1", "2", "3", "4", "one", "two", "three", "four", "reset"]
         recognizer = KaldiRecognizer(vosk_model, 16000, json.dumps(allowed_words))
         print("✔ VOSK Speech Recognition (Small Model) successfully loaded.")
     else:
@@ -68,7 +76,13 @@ def send_index_to_api(idx, is_voice_active=False, mic_level=0):
             json={
                 "index": idx, 
                 "is_voice_active": is_voice_active,
-                "mic_level": int(mic_level)
+                "mic_level": int(mic_level),
+                "selected_cell": interaction["selected_cell"],
+                "zoom_level": interaction["zoom_level"],
+                "offset_x": interaction["offset_x"],
+                "offset_y": interaction["offset_y"],
+                "zoom_origin_x": interaction["zoom_origin_x"],
+                "zoom_origin_y": interaction["zoom_origin_y"],
             }, 
             timeout=0.1
         )
@@ -84,7 +98,21 @@ def process_voice_input(text):
         row = words[1].lower()
         row = number_mapping.get(row, row)
         if col in ["a", "b", "c", "d"] and row in ["1", "2", "3", "4"]:
-            print(f"🎙️ [VOICE COMMAND] Grid recognized: {col.upper()}{row}")
+            return f"{col.upper()}{row}"
+    return None
+
+def get_cell_origin(cell):
+    columns = {"A": 12.5, "B": 37.5, "C": 62.5, "D": 87.5}
+    rows = {"4": 12.5, "3": 37.5, "2": 62.5, "1": 87.5}
+    return columns[cell[0]], rows[cell[1]]
+
+def reset_interaction():
+    interaction["selected_cell"] = None
+    interaction["zoom_level"] = 1.0
+    interaction["offset_x"] = 0.0
+    interaction["offset_y"] = 0.0
+    interaction["zoom_origin_x"] = 50.0
+    interaction["zoom_origin_y"] = 50.0
 
 def main():
     global current_slice_idx
@@ -110,7 +138,12 @@ def main():
     last_pinch_time = 0.0
     double_pinch_window = 0.4
     is_voice_active = False
+    can_select_field = False
     was_pinching = False
+    is_zooming = False
+
+    zoom_anchor_level = 1.0
+    zoom_anchor_position = None
 
     last_api_send_time = 0.0
     API_SEND_INTERVAL = 0.05  
@@ -184,17 +217,19 @@ def main():
                     distance = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
                     is_pinching = distance < 0.05
                     hand_is_currently_pinching = is_pinching
+                    pinch_position = ((thumb_tip.x + index_tip.x) / 2, (thumb_tip.y + index_tip.y) / 2)
 
                     if is_pinching and not was_pinching:
                         time_since_last = current_time - last_pinch_time
                         if time_since_last < double_pinch_window and audio_stream is not None:
                             is_voice_active = True
+                            can_select_field = True
                             last_y = None  
                             audio_queue.queue.clear()
                             print("🎙️ Listening (e.g. 'A 4')...")
                             send_index_to_api(current_slice_idx, is_voice_active=True, mic_level=0)
-                        last_pinch_time = current_time
 
+                        last_pinch_time = current_time
                     was_pinching = is_pinching
 
                     for idx, point in enumerate(points):
@@ -211,7 +246,20 @@ def main():
 
                     current_y = index_tip.y
                     
-                    if is_pinching and not is_voice_active:
+                    if is_pinching and is_zooming and zoom_anchor_position:
+                        hand_distance = math.dist(pinch_position, zoom_anchor_position)
+                        desired_zoom = min(4.0, zoom_anchor_level + max(0.0, hand_distance - 0.03) * 4.0)
+                        next_zoom = interaction["zoom_level"] + (desired_zoom - interaction["zoom_level"]) * 0.06
+                        zoom_changed = abs(next_zoom - interaction["zoom_level"]) >= 0.002
+
+                        if zoom_changed:
+                            interaction["zoom_level"] = next_zoom
+
+                        if zoom_changed and current_time - last_api_send_time >= API_SEND_INTERVAL:
+                            send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
+                            last_api_send_time = current_time
+
+                    elif is_pinching and not is_voice_active:
                         if last_y is not None and (current_time - last_action_time > cooldown_seconds):
                             y_diff = current_y - last_y
                             if y_diff < -0.04:
@@ -219,6 +267,11 @@ def main():
                                     current_slice_idx -= 1
                                 else: 
                                     current_slice_idx = len(ct_files) - 1
+                                interaction["zoom_level"] = 1.0
+                                interaction["offset_x"] = 0.0
+                                interaction["offset_y"] = 0.0
+                                interaction["zoom_origin_x"] = 50.0
+                                interaction["zoom_origin_y"] = 50.0
                                 last_action_time = current_time
                                 print(f"<- Previous slice (Swipe UP): {ct_files[current_slice_idx]}")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
@@ -228,6 +281,11 @@ def main():
                                     current_slice_idx += 1
                                 else: 
                                     current_slice_idx = 0
+                                interaction["zoom_level"] = 1.0
+                                interaction["offset_x"] = 0.0
+                                interaction["offset_y"] = 0.0
+                                interaction["zoom_origin_x"] = 50.0
+                                interaction["zoom_origin_y"] = 50.0
                                 last_action_time = current_time
                                 print(f"-> Next slice (Swipe DOWN): {ct_files[current_slice_idx]}")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
@@ -251,7 +309,36 @@ def main():
                         
                         if recognizer and recognizer.AcceptWaveform(data):
                             result = json.loads(recognizer.Result())
-                            process_voice_input(result.get("text", ""))
+                            recognized_text = result.get("text", "").strip().lower()
+
+                            if recognized_text == "reset" and can_select_field:
+                                reset_interaction()
+                                zoom_anchor_level = 1.0
+                                zoom_anchor_position = None
+                                is_zooming = False
+                                can_select_field = False
+                                is_voice_active = False
+                                smoothed_mic_level = 0.0
+                                print("🎙️ [VOICE COMMAND] Reset auf Standardansicht.")
+                                send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
+                            else:
+                                selected_cell = process_voice_input(recognized_text)
+                                if selected_cell and can_select_field:
+                                    origin_x, origin_y = get_cell_origin(selected_cell)
+                                    zoom_delta = 1.0 - interaction["zoom_level"]
+                                    interaction["offset_x"] += zoom_delta * (interaction["zoom_origin_x"] - origin_x)
+                                    interaction["offset_y"] += zoom_delta * (interaction["zoom_origin_y"] - origin_y)
+                                    interaction["zoom_origin_x"] = origin_x
+                                    interaction["zoom_origin_y"] = origin_y
+                                    interaction["selected_cell"] = selected_cell
+                                    zoom_anchor_level = interaction["zoom_level"]
+                                    zoom_anchor_position = pinch_position
+                                    is_zooming = True
+                                    can_select_field = False
+                                    is_voice_active = False
+                                    smoothed_mic_level = 0.0
+                                    print(f"🎙️ [VOICE COMMAND] Grid selected: {selected_cell}")
+                                    send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                     
                     if amplitudes:
                         max_amplitude = max(amplitudes)
@@ -267,7 +354,7 @@ def main():
                     else:
                         smoothed_mic_level = smoothed_mic_level + alpha * (current_mic_level - smoothed_mic_level)
                     
-                    if current_time - last_api_send_time >= API_SEND_INTERVAL:
+                    if is_voice_active and current_time - last_api_send_time >= API_SEND_INTERVAL:
                         send_index_to_api(current_slice_idx, is_voice_active=True, mic_level=int(smoothed_mic_level))
                         last_api_send_time = current_time
                 else:
@@ -277,11 +364,17 @@ def main():
 
             if is_voice_active and not hand_is_currently_pinching:
                 is_voice_active = False
+                can_select_field = False
                 smoothed_mic_level = 0.0
                 if recognizer:
                     result = json.loads(recognizer.Result())
                     process_voice_input(result.get("text", ""))
                 print("🎙️ Voice control stopped.")
+                send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
+
+            if not hand_is_currently_pinching and is_zooming:
+                is_zooming = False
+                interaction["selected_cell"] = None
                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
 
             active_ct_path = os.path.join(ct_dir, ct_files[current_slice_idx])

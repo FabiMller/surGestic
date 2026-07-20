@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 function App() {
+  const patientId = 'TEST-ID-12345678';
   const [currentSlice, setCurrentSlice] = useState({ index: 0, imageUrl: '', sliceName: '' });
   const [allSlices, setAllSlices] = useState([]);
   const [backendError, setBackendError] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false); 
   const [micLevel, setMicLevel] = useState(0); 
-  
+  const [selectedCell, setSelectedCell] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
+
   const thumbnailRefs = useRef({});
 
-  // API polling at an accelerated 50ms interval for low-latency updates
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -30,6 +34,10 @@ function App() {
         
         setIsVoiceActive(!!data.is_voice_active);
         setMicLevel(data.mic_level || 0); 
+        setSelectedCell(data.selected_cell || null);
+        setZoomLevel(data.zoom_level || 1);
+        setImageOffset({ x: data.offset_x || 0, y: data.offset_y || 0 });
+        setZoomOrigin({ x: data.zoom_origin_x ?? 50, y: data.zoom_origin_y ?? 50 });
         setBackendError(false);
       } catch (error) {
         setBackendError(true);
@@ -41,7 +49,6 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Automatic sidebar scrolling to keep the active thumbnail visible
   useEffect(() => {
     if (thumbnailRefs.current[currentSlice.index]) {
       thumbnailRefs.current[currentSlice.index].scrollIntoView({
@@ -127,22 +134,60 @@ function App() {
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
+      minWidth: 0,
       alignItems: 'center',
       justifyContent: 'center',
+      paddingTop: '60px', 
+      boxSizing: 'border-box',
+    },
+    metaOverlay: {
+      position: 'absolute',
+      top: '20px',
+      left: '20px',
+      pointerEvents: 'none',
+      fontFamily: 'monospace',
+      fontSize: '0.85rem',
+      color: '#38bdf8',
+      lineHeight: '1.4',
+      textShadow: '1px 1px 2px #000',
+      zIndex: 10,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '24px',
+    },
+    metaVal: {
+      color: '#fff',
+      fontSize: '1.05rem',
+      fontWeight: 'bold',
+    },
+    metaSubInline: {
+      color: '#64748b',
+      fontSize: '0.78rem',
+      borderLeft: '1px solid #1e293b',
+      paddingLeft: '16px',
+    },
+    imageArea: {
+      display: 'contents',
     },
     imageContainer: {
       position: 'relative',
-      maxHeight: '92vh',
-      maxWidth: '95%',
+      width: '100%',
+      height: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden',
     },
     activeImage: {
-      maxHeight: '92vh',
+      maxHeight: '100%',
       maxWidth: '100%',
+      width: '100%',
+      height: '100%',
       objectFit: 'contain',
       display: 'block',
+      transformOrigin: '50% 50%',
+      transform: 'translate(${imageOffset.x}%, ${imageOffset.y + 2}%) scale(${zoomLevel * 2.0})',
+      transition: 'transform 0.18s ease-out',
     },
     gridOverlay: {
       position: 'absolute',
@@ -159,6 +204,10 @@ function App() {
       position: 'relative',
       borderRight: '1px solid rgba(255, 255, 255, 0.15)',
       borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+    },
+    selectedGridCell: {
+      boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.6)',
+      backgroundColor: 'rgba(56, 189, 248, 0.05)',
     },
     rowLabel: {
       position: 'absolute',
@@ -181,18 +230,6 @@ function App() {
       color: 'rgba(56, 189, 248, 0.9)',
       fontFamily: 'monospace',
       textShadow: '1px 1px 3px #000',
-    },
-    metaOverlay: {
-      position: 'absolute',
-      top: '20px',
-      left: '20px',
-      pointerEvents: 'none',
-      fontFamily: 'monospace',
-      fontSize: '0.85rem',
-      color: '#38bdf8',
-      lineHeight: '1.4',
-      textShadow: '1px 1px 2px #000',
-      zIndex: 10,
     },
     rightStatusContainer: {
       position: 'absolute',
@@ -258,7 +295,6 @@ function App() {
       width: `${isVoiceActive ? Math.min(micLevel * 4, 100) : 0}%`, 
       backgroundColor: '#ef4444', 
       boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
-      // Smooth CSS transitions bridge the gap between rapid API polls
       transition: 'width 0.15s ease-out', 
     }
   };
@@ -268,7 +304,7 @@ function App() {
 
   return (
     <div style={styles.container}>
-      {/* SIDEBAR: Thumbnails */}
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>CT Slices ({allSlices.length})</div>
         {allSlices.map((sliceName, idx) => {
@@ -296,20 +332,24 @@ function App() {
         })}
       </div>
 
-      {/* MONITOR AREA */}
+      {/* MONITOR MAIN CONTENT AREA */}
       <div style={styles.mainContent}>
+        {/* HUD Overlay (Links oben) */}
         <div style={styles.metaOverlay}>
-          <div>CURRENT VIEW</div>
-          <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 'bold' }}>
-            {currentSlice.sliceName || 'Waiting for signal...'}
+          <div>
+            <div>PATIENT ID: <span style={styles.metaVal}>{patientId}</span></div>
+            <div style={{ marginTop: '2px' }}>
+              VIEW: <span style={styles.metaVal}>{currentSlice.sliceName || 'Waiting...'}</span>
+            </div>
           </div>
-          <div style={{ color: '#64748b', marginTop: '5px' }}>
+          <div style={styles.metaSubInline}>
             INDEX: {currentSlice.index}<br />
-            MODE: MPR 2D<br />
-            GRID: 4x4 (A1-D4)
+            MODE: MPR 2D | ZOOM: {zoomLevel.toFixed(1)}x<br />
+            GRID: 4x4 {selectedCell ? `[SEL: ${selectedCell}]` : ''}
           </div>
         </div>
 
+        {/* HUD Overlay (Rechts oben) */}
         <div style={styles.rightStatusContainer}>
           <div style={styles.statusLedContainer}>
             <div style={styles.statusLed}></div>
@@ -317,7 +357,6 @@ function App() {
               {backendError ? 'SERVER DISCONNECTED' : 'SERVER ONLINE'}
             </span>
           </div>
-
           <div style={styles.micHud}>
             <span style={styles.micLabel}>{isVoiceActive ? 'REC' : 'MIC'}</span>
             <div style={styles.micBarContainer}>
@@ -326,48 +365,54 @@ function App() {
           </div>
         </div>
 
-        {/* CT image with cleaned 4x4 chessboard grid */}
-        {currentSlice.imageUrl ? (
-          <div style={styles.imageContainer}>
-            <img
-              src={currentSlice.imageUrl}
-              alt="Active CT Slice"
-              style={styles.activeImage}
-              key={currentSlice.index}
-            />
-            <div style={styles.gridOverlay}>
-              {rows.map((row, rowIndex) =>
-                columns.map((col, colIndex) => {
-                  const isRightEdge = col === 'D';
-                  const isBottomEdge = row === '4';
-                  
-                  // Row labels (1-4) on the left edge only
-                  const showRowLabel = colIndex === 0;
-                  // Column labels (A-D) on the bottom edge only
-                  const showColLabel = rowIndex === 3;
+        {/* CT Image Display Area */}
+        <div style={styles.imageArea}>
+          {currentSlice.imageUrl ? (
+            <div style={styles.imageContainer}>
+              <img
+                src={currentSlice.imageUrl}
+                alt="Active CT Slice"
+                style={{
+                  ...styles.activeImage,
+                  transform: `translate(${imageOffset.x}%, ${imageOffset.y}%) scale(${zoomLevel})`,
+                  transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                }}
+                key={currentSlice.index}
+              />
+              <div style={styles.gridOverlay}>
+                {rows.map((row, rowIndex) =>
+                  columns.map((col, colIndex) => {
+                    const isRightEdge = col === 'D';
+                    const isBottomEdge = row === '1';
+                    
+                    const showRowLabel = colIndex === 0;
+                    const showColLabel = rowIndex === 3;
+                    const isSelected = `${col}${row}` === selectedCell;
 
-                  return (
-                    <div
-                      key={`${col}${row}`}
-                      style={{
-                        ...styles.gridCell,
-                        borderRight: isRightEdge ? 'none' : styles.gridCell.borderRight,
-                        borderBottom: isBottomEdge ? 'none' : styles.gridCell.borderBottom,
-                      }}
-                    >
-                      {showRowLabel && <span style={styles.rowLabel}>{row}</span>}
-                      {showColLabel && <span style={styles.colLabel}>{col}</span>}
-                    </div>
-                  );
-                })
-              )}
+                    return (
+                      <div
+                        key={`${col}${row}`}
+                        style={{
+                          ...styles.gridCell,
+                          ...(isSelected ? styles.selectedGridCell : {}),
+                          borderRight: isRightEdge ? 'none' : styles.gridCell.borderRight,
+                          borderBottom: isBottomEdge ? 'none' : styles.gridCell.borderBottom,
+                        }}
+                      >
+                        {showRowLabel && <span style={styles.rowLabel}>{row}</span>}
+                        {showColLabel && <span style={styles.colLabel}>{col}</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{ color: '#475569', fontSize: '1.2rem', letterSpacing: '1px' }}>
-            NO IMAGE STREAM SIGNAL
-          </div>
-        )}
+          ) : (
+            <div style={{ color: '#475569', fontSize: '1.2rem', letterSpacing: '1px', fontFamily: 'monospace' }}>
+              NO IMAGE STREAM SIGNAL
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
