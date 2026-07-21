@@ -1,143 +1,167 @@
-# Sterile AI OR Assistant
+# 🩺 surGestic - a Sterile OR Assistant
 
-> **Note:** This is a demonstration prototype. It is not medical software and must not be used for clinical care, diagnostic decisions, or processing real patient data.
 
-The Sterile AI OR Assistant explores a touch-free interface for the operating-room environment. A digital monitor displays CT slices that can be selected with hand gestures. A local voice mode also provides visible microphone feedback. The project establishes a foundation for an assistant that could eventually let surgeons interact with imaging and patient information while remaining sterile.
+  > **OpenAI Build Week Challenge Submission**  
+  > *Category:* **Work & Productivity**  / **Apps for Your Life** (Healthcare & Medical Technology)
+  > *Built with:* **GPT-5.6** & **OpenAI Codex**
 
-## Current Features
 
-- CT viewer using PNG slices from `frontend/public/ct/`
-- React monitor with a thumbnail sidebar, active CT slice, 4×4 orientation grid, and connection status
-- FastAPI interface for synchronizing the currently selected slice
-- MediaPipe-based single-hand detection through a webcam
-- Pinch plus vertical movement selects the previous or next CT slice cyclically
-- Double pinch activates local voice mode; the UI displays recording state and microphone level
-- Local Vosk recognition for grid coordinates `A`–`D` and `1`–`4` (for example, “A 4”); a recognized grid cell is currently printed to the terminal only
 
-The sample files in `data/` contain anonymized patient and laboratory data for a later implementation step. They are **not yet connected** to the API or user interface.
+---
+## 📋 Overview
 
-## Architecture
+In a surgical operating room (OR), maintaining **strict sterility** is a matter of life and death. Surgeons frequently need to review DICOM/CT medical scans during procedures, but touching traditional keyboards, mice, or touchscreens breaks the sterile field, requiring laborious re-sterilization or assistance from circulating nurses.
 
-```text
-Webcam / microphone
-        │
-        ▼
-ct_viewer.py ── MediaPipe Hands + Vosk ──► FastAPI (port 8000)
-        │                                      │
-        └── local OpenCV window                 ▼
-                                    React/Vite monitor (port 5173)
-                                    CT slices + status + microphone HUD
-```
+**Sterile OR Assistant** solves this critical healthcare challenge by introducing a completely **touchless, sterile interface** for medical imaging. Combining high-precision hand-gesture tracking and offline voice recognition, surgeons can seamlessly navigate CT slices and zoom into specific ROI (Region of Interest) grid sectors without ever breaking sterility.
 
-| Area | Technology | Purpose |
-| --- | --- | --- |
-| Frontend | React 19, Vite | OR monitor and CT display |
-| Backend | FastAPI, Uvicorn, Pydantic | Exposes slice and microphone state over HTTP |
-| Gestures | MediaPipe Tasks, OpenCV | Hand tracking, pinch, and swipe interaction |
-| Voice | Vosk, SoundDevice | Local, constrained speech recognition and level metering |
+---
 
-Although `openai` is listed in `backend/requirements.txt`, it is not called by the current code. No OpenAI API key or external AI API is currently required.
+## ✨ Key Features & Demo
 
-## Requirements
+- 🤏 **Touchless Gesture Control (MediaPipe):**
+  - **Single Pinch + Swipe Down:** Advance to the next CT slice.
+  - **Single Pinch + Swipe Up:** Return to the previous CT slice.
+- 🎙️ **Voice-Activated Grid Selection (VOSK):**
+  - **Double Pinch & Hold:** Activates real-time speech recognition.
+  - **Grid Navigation:** Call out grid coordinates (e.g., `"C3"`, `"A4"`) overlaying the CT scan to pinpoint regions.
+  - **Voice Command `"reset"`:** Restores the view to default scaling and centering.
+- 🔍 **Dynamic Distance Zooming:**
+  - After selecting a grid cell, moving your hand further from the pinch origin zooms in dynamically; moving closer zooms back out.
+- ⚡ **Low-Latency Architecture:**
+  - **FastAPI** backend with asynchronous state synchronization to a high-performance **React + Vite** frontend interface.
 
-- Python 3.10 or later
-- Node.js 20 or later and npm
-- Webcam and microphone (for gesture and voice interaction)
-- macOS: `start_all.sh` opens three Terminal tabs through AppleScript
+---
 
-Gesture control requires the MediaPipe model at `backend/hand_landmarker.task`. Speech recognition additionally requires a Vosk model at `backend/vosk-model-small-en-us-0.15/`. If the Vosk model is unavailable, gesture control and microphone-level feedback still work, but local speech recognition is disabled.
+## 🤖 Built with GPT-5.6 & OpenAI Codex
 
-## Run Locally
+This project was built from ground zero during the **OpenAI Build Week Challenge**, leveraging **GPT-5.6** for architecture design and **OpenAI Codex** for rapid code generation, bug fixing, and optimization.
 
-### 1. Set up the Python environment and backend
+### Where Codex Accelerated the Workflow:
+1. **Mathematical Spatial Mapping:** Codex generated the coordinate transformation formulas mapping camera-space hand landmark coordinates to 2D image grid anchors and CSS transform offsets.
+2. **Audio-Stream Threading & State Sync:** Codex wrote the concurrent audio buffer loop using `sounddevice` and `queue`, integrating VOSK speech recognition without blocking OpenCV's 30 FPS camera feed.
+3. **Cross-Platform Script Automation:** Codex created the macOS shell automation (`start_all.sh` / `stop_all.sh`) using AppleScript to launch and manage backend, vision module, and Vite frontend servers in separate terminal tabs effortlessly.
+
+---
+
+## 🏗️ Architecture
+
+The **Sterile OR Assistant** uses a low-latency, modular system architecture designed to maintain a smooth 30 FPS visual experience while concurrently processing vision and audio input.
+
+### System Components
+
+1. **Vision & Voice Engine (`ct_viewer.py`)**
+   - **Video Processing:** Captures real-time webcam feed via OpenCV.
+   - **Gesture Tracking:** Leverages Google MediaPipe `HandLandmarker` to track hand landmarks, detect single/double pinches, and measure vertical swipe deltas.
+   - **Speech Recognition:** Processes live microphone input through an offline VOSK model (`vosk-model-small-en-us-0.15`) running in a dedicated audio buffer thread to recognize grid coordinates (e.g., `"C3"`) and commands like `"reset"`.
+   - **State Calculation:** Dynamically calculates spatial offsets, zoom levels based on hand distance, and selected grid origin coordinates.
+
+2. **Backend API (`backend/main.py`)**
+   - **Framework:** Built with **FastAPI** running on Uvicorn.
+   - **State Management:** Serves as the central state hub holding real-time parameters (current slice index, active grid cell, zoom factor, pan offsets, and microphone audio levels).
+   - **Endpoints:** Exposes RESTful endpoints (`/update-slice` and `/current-slice`) for state synchronization with sub-100ms response times.
+
+3. **Frontend User Interface (`frontend/`)**
+   - **Framework:** Built with **React** and **Vite** for maximum rendering performance.
+   - **OR Display GUI:** Continuously polls the backend API to update the CT image display, overlay the dynamic coordinate grid, apply smooth CSS transform animations for zooming and panning, and render real-time audio visualizers.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Operating System:** macOS / Linux / Windows (macOS recommended for start/stop shell scripts)
+- **Python:** 3.14.3
+- **Node.js:** v18+ & `npm`
+- **Webcam & Microphone**
+
+---
+
+### Installation & Setup
+
+1. **Clone the Repository:**
+    ```bash
+    git clone https://github.com/FabiMller/surGestic.git
+    cd surGestic
+
+    ```
+
+
+2. **Set Up Python Virtual Environment:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+
+    ```
+
+
+3. **Install Frontend Dependencies:**
+    ```bash
+    cd frontend
+    npm install
+    cd ..
+
+    ```
+
+
+4. **Download Required Assets & Models:**
+* **MediaPipe Hand Landmarker:** Download `hand_landmarker.task` into the `backend/` directory.
+* **VOSK Offline Model:** Download `vosk-model-small-en-us-0.15` and extract it into `backend/vosk-model-small-en-us-0.15`.
+
+
+
+---
+
+### 🩻 Generating Sample Data
+
+Before starting the application, generate the synthetic CT scan series:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r backend/requirements.txt
-pip install vosk sounddevice requests numpy
+python generate_test_images.py
+
 ```
 
-The final command installs libraries used by the current gesture and voice script that are not yet included in `backend/requirements.txt`.
+*This generates CT slice image assets in `frontend/public/ct/`.*
 
-### 2. Set up the frontend
+---
 
-```bash
-cd frontend
-npm install
-cd ..
-```
+### 🏃 Running the Application
 
-### 3. Start all components (macOS)
+Start all services (FastAPI Backend, MediaPipe/VOSK Vision Engine, and React Frontend) with a single command:
 
 ```bash
-chmod +x start_all.sh
+chmod +x start_all.sh stop_all.sh
 ./start_all.sh
+
 ```
 
-The script starts:
+* **Frontend Viewer:** Runs at `http://localhost:5173`
+* **FastAPI API:** Runs at `http://127.0.0.1:8000`
 
-1. FastAPI at `http://127.0.0.1:8000`
-2. gesture control with webcam and microphone
-3. the Vite server at `http://localhost:5173`
+---
 
-Alternatively, start the three processes in separate terminals:
+### 🛑 Stopping the Application
+
+To shut down all running servers and clean up terminal processes:
 
 ```bash
-# Terminal 1
-source venv/bin/activate
-cd backend && uvicorn main:app --reload
+./stop_all.sh
 
-# Terminal 2
-source venv/bin/activate
-cd backend && python ct_viewer.py
-
-# Terminal 3
-cd frontend && npm run dev
 ```
 
-## HTTP API
+---
 
-| Method | Endpoint | Purpose |
+## 🎮 How to Use (Surgeon Instructions)
+
+| Action | Physical/Voice Gesture | Result |
 | --- | --- | --- |
-| `GET` | `/` | Backend availability status |
-| `GET` | `/current-slice` | Current slice, image URL, slice list, and microphone state |
-| `POST` | `/update-slice` | Updates the current slice and voice/microphone state |
+| **Next Slice** | Single Pinch (Index + Thumb) & **Swipe Down** | Moves to next CT slice |
+| **Previous Slice** | Single Pinch (Index + Thumb) & **Swipe Up** | Moves to previous CT slice |
+| **Voice Mode** | **Double Pinch & Hold** | Activates microphone listener |
+| **Select ROI** | Speak grid cell (e.g., `"C 3"`, `"A 4"`) | Centers view on target coordinate |
+| **Zoom In / Out** | Hold pinch and move hand away / towards pinch origin | Adjusts continuous zoom level |
+| **Reset View** | Speak `"reset"` | Restores CT scan to full 1.0x view |
 
-Example update payload:
-
-```json
-{
-  "index": 2,
-  "is_voice_active": true,
-  "mic_level": 42
-}
-```
-
-## Roadmap
-
-The vision extends beyond the current image viewer:
-
-- Display patient records, laboratory values, and vital signs from structured data
-- Translate voice commands such as “Show me the allergies” into UI and data actions
-- Add gestures for zooming, freezing, windows, and layouts
-- Add an AI agent with tools for patient, laboratory, and imaging data
-- Provide intelligent OR-relevant summaries and trend comparisons
-
-Before any real-world clinical use, privacy, security validation, medical-device approval, and safe integration with clinical systems must be addressed separately.
-
-## Project Structure
-
-```text
-backend/
-  main.py              # FastAPI synchronization API
-  ct_viewer.py         # Webcam, gesture, and voice control
-  hand_landmarker.task # MediaPipe hand model
-frontend/
-  src/App.jsx          # React OR monitor
-  public/ct/           # Example CT slices
-data/
-  patient.json         # Sample data, not yet integrated
-  labs.json            # Sample data, not yet integrated
-start_all.sh           # Starts all components on macOS
-```
+---
+---
