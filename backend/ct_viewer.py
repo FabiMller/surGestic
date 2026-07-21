@@ -220,7 +220,7 @@ def main():
                     index_tip = hand_landmarks[8]
 
                     distance = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-                    is_pinching = distance < 0.05
+                    is_pinching = distance < 0.02
                     hand_is_currently_pinching = is_pinching
                     pinch_position = ((thumb_tip.x + index_tip.x) / 2, (thumb_tip.y + index_tip.y) / 2)
 

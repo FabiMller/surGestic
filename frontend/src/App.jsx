@@ -85,11 +85,13 @@ useEffect(() => {
     },
     slicesSection: {
       flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      columnGap: '8px',
+      rowGap: '72px',
+      alignContent: 'start',
       overflowY: 'auto',
-      padding: '15px 10px 5px 10px',
-      gap: '10px',
+      padding: '10px',
       borderBottom: '1px solid #1e293b',
     },
     sidebarHeader: {
@@ -363,35 +365,39 @@ useEffect(() => {
 
   return (
     <div style={styles.container}>
-      {/* SIDEBAR */}
-      <div style={styles.sidebar}>
-        {/* CT SLICES */}
-        <div style={styles.slicesSection}>
-          <div style={styles.sidebarHeader}>CT Slices ({allSlices.length})</div>
-          {allSlices.map((sliceName, idx) => {
-            const isActive = idx === currentSlice.index;
-            return (
-              <div
-                key={idx}
-                ref={(el) => (thumbnailRefs.current[idx] = el)}
-                style={{
-                  ...styles.thumbnailWrapper,
-                  ...(isActive ? styles.thumbnailActive : {}),
-                }}
-              >
-                <img
-                  src={`/ct/${sliceName}`}
-                  alt={`Thumb ${idx}`}
-                  style={{
-                    ...styles.thumbnailImg,
-                    ...(isActive ? styles.thumbnailImgActive : {}),
-                  }}
-                />
-                <div style={styles.thumbnailLabel}># {String(idx).padStart(2, '0')}</div>
-              </div>
-            );
-          })}
+{/* SIDEBAR */}
+<div style={styles.sidebar}>
+  {/* Header außerhalb des Grids platzieren */}
+  <div style={{ ...styles.sidebarHeader, padding: '15px 10px 5px 15px' }}>
+    CT Slices ({allSlices.length})
+  </div>
+
+  {/* CT SLICES GRID */}
+  <div style={styles.slicesSection}>
+    {allSlices.map((sliceName, idx) => {
+      const isActive = idx === currentSlice.index;
+      return (
+        <div
+          key={idx}
+          ref={(el) => (thumbnailRefs.current[idx] = el)}
+          style={{
+            ...styles.thumbnailWrapper,
+            ...(isActive ? styles.thumbnailActive : {}),
+          }}
+        >
+          <img
+            src={`/ct/${sliceName}`}
+            alt={`Thumb ${idx}`}
+            style={{
+              ...styles.thumbnailImg,
+              ...(isActive ? styles.thumbnailImgActive : {}),
+            }}
+          />
+          <div style={styles.thumbnailLabel}># {String(idx).padStart(2, '0')}</div>
         </div>
+      );
+    })}
+  </div>
 
         {/* AI ANALYSIS OVERLAY */}
         <div style={styles.aiSection}>
