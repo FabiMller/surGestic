@@ -26,10 +26,12 @@ state = {
 
 CT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "public", "ct"))
 
+
 def get_ct_files():
     if not os.path.exists(CT_DIR):
         return []
     return sorted([f for f in os.listdir(CT_DIR) if f.endswith('.png')])
+
 
 class SliceUpdate(BaseModel):
     index: int
@@ -42,19 +44,21 @@ class SliceUpdate(BaseModel):
     zoom_origin_x: float = 50.0
     zoom_origin_y: float = 50.0
 
+
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "Sterile OR Assistant API is running perfectly."}
+
 
 @app.get("/current-slice")
 def get_current_slice():
     files = get_ct_files()
     if not files:
-        raise HTTPException(status_code=444, detail="No CT images found in the assets folder.")
-    
+        raise HTTPException(status_code=404, detail="No CT images found in the assets folder.")
+
     idx = max(0, min(state["current_index"], len(files) - 1))
     slice_name = files[idx]
-    
+
     return {
         "index": idx,
         "slice_name": slice_name,
@@ -70,15 +74,15 @@ def get_current_slice():
         "zoom_origin_y": state["zoom_origin"]["y"],
     }
 
+
 @app.post("/update-slice")
 def update_slice(data: SliceUpdate):
     files = get_ct_files()
     if not files:
-         raise HTTPException(status_code=400, detail="No files available")
-
+        raise HTTPException(status_code=400, detail="No files available")
     if data.index < 0 or data.index >= len(files):
         raise HTTPException(status_code=400, detail="Index out of range")
-    
+
     state["current_index"] = data.index
     state["is_voice_active"] = data.is_voice_active
     state["mic_level"] = data.mic_level
@@ -95,7 +99,7 @@ def update_slice(data: SliceUpdate):
         print(f"[API] Slice: {data.index} | 💤 STANDBY")
 
     return {
-        "status": "success", 
+        "status": "success",
         "updated_index": state["current_index"],
         "is_voice_active": state["is_voice_active"],
         "mic_level": state["mic_level"],

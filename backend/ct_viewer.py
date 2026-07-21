@@ -319,7 +319,7 @@ def main():
                                 can_select_field = False
                                 is_voice_active = False
                                 smoothed_mic_level = 0.0
-                                print("🎙️ [VOICE COMMAND] Reset auf Standardansicht.")
+                                print("🎙️ [VOICE COMMAND] Reset to default view.")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                             else:
                                 selected_cell = process_voice_input(recognized_text)

@@ -72,16 +72,22 @@ function App() {
       userSelect: 'none',
     },
     sidebar: {
-      width: '240px',
+      width: '260px',
       height: '100vh',
       backgroundColor: '#0c0f1d',
       borderRight: '1px solid #1e293b',
       display: 'flex',
       flexDirection: 'column',
-      overflowY: 'auto',
-      padding: '15px 10px',
       boxSizing: 'border-box',
-      gap: '12px',
+    },
+    slicesSection: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      overflowY: 'auto',
+      padding: '15px 10px 5px 10px',
+      gap: '10px',
+      borderBottom: '1px solid #1e293b',
     },
     sidebarHeader: {
       fontSize: '0.75rem',
@@ -89,7 +95,8 @@ function App() {
       letterSpacing: '2px',
       color: '#64748b',
       paddingLeft: '5px',
-      marginBottom: '5px',
+      marginBottom: '2px',
+      fontWeight: 'bold',
     },
     thumbnailWrapper: {
       position: 'relative',
@@ -98,11 +105,11 @@ function App() {
       backgroundColor: '#000',
       border: '2px solid transparent',
       transition: 'all 0.2s ease',
-      cursor: 'pointer',
       aspectRatio: '16/9',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
+      flexShrink: 0,
     },
     thumbnailActive: {
       border: '2px solid #38bdf8',
@@ -126,6 +133,54 @@ function App() {
       padding: '2px 6px',
       borderRadius: '4px',
       color: '#fff',
+      fontFamily: 'monospace',
+    },
+    aiSection: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      padding: '12px',
+      backgroundColor: 'rgba(12, 15, 29, 0.95)',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    aiHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: '10px'
+    },
+    aiTitle: {
+      fontSize: '0.75rem',
+      textTransform: 'uppercase',
+      letterSpacing: '1.5px',
+      color: '#38bdf8',
+      fontWeight: 'bold',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
+    aiBadge: {
+      fontSize: '0.6rem',
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+      color: '#38bdf8',
+      border: '1px solid rgba(56, 189, 248, 0.3)',
+      padding: '2px 6px',
+      borderRadius: '10px',
+      fontWeight: 'bold',
+    },
+    aiContentBox: {
+      flex: 1,
+      backgroundColor: '#05070f',
+      border: '1px solid #1e293b',
+      borderRadius: '6px',
+      padding: '10px',
+      overflowY: 'auto',
+      fontSize: '0.78rem',
+      lineHeight: '1.5',
+      color: '#cbd5e1',
+      fontFamily: 'monospace',
     },
     mainContent: {
       flex: 1,
@@ -135,29 +190,32 @@ function App() {
       flexDirection: 'column',
       position: 'relative',
       minWidth: 0,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingTop: '60px', 
       boxSizing: 'border-box',
     },
+    topBar: {
+      height: '65px',
+      width: '100%',
+      backgroundColor: 'rgba(12, 15, 29, 0.95)',
+      borderBottom: '1px solid #1e293b',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 20px',
+      boxSizing: 'border-box',
+      zIndex: 10,
+    },
     metaOverlay: {
-      position: 'absolute',
-      top: '20px',
-      left: '20px',
-      pointerEvents: 'none',
       fontFamily: 'monospace',
       fontSize: '0.85rem',
       color: '#38bdf8',
-      lineHeight: '1.4',
-      textShadow: '1px 1px 2px #000',
-      zIndex: 10,
+      lineHeight: '1.3',
       display: 'flex',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: '24px',
     },
     metaVal: {
       color: '#fff',
-      fontSize: '1.05rem',
+      fontSize: '1rem',
       fontWeight: 'bold',
     },
     metaSubInline: {
@@ -166,8 +224,73 @@ function App() {
       borderLeft: '1px solid #1e293b',
       paddingLeft: '16px',
     },
+    rightStatusContainer: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+    },
+    statusLedContainer: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      backgroundColor: '#05070f',
+      padding: '6px 12px',
+      borderRadius: '20px',
+      border: '1px solid #1e293b',
+      fontSize: '0.8rem',
+      fontWeight: '500',
+      letterSpacing: '0.5px',
+    },
+    statusLed: {
+      width: '10px',
+      height: '10px',
+      borderRadius: '50%',
+      backgroundColor: backendError ? '#ef4444' : '#10b981',
+      boxShadow: backendError ? '0 0 10px #ef4444' : '0 0 10px #10b981',
+      transition: 'background-color 0.3s ease',
+    },
+    micHud: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      backgroundColor: '#05070f',
+      padding: '6px 14px',
+      borderRadius: '20px',
+      border: isVoiceActive ? '1px solid #ef4444' : '1px solid #1e293b',
+      boxShadow: isVoiceActive ? '0 0 12px rgba(239, 68, 68, 0.4)' : 'none',
+      width: '140px',
+      boxSizing: 'border-box',
+      transition: 'all 0.2s ease',
+    },
+    micLabel: {
+      fontSize: '0.7rem',
+      fontFamily: 'monospace',
+      color: isVoiceActive ? '#ef4444' : '#64748b', 
+      fontWeight: 'bold',
+      transition: 'all 0.2s ease',
+    },
+    micBarContainer: {
+      flex: 1,
+      height: '6px',
+      backgroundColor: '#1e293b',
+      borderRadius: '3px',
+      overflow: 'hidden',
+    },
+    micBarFill: {
+      height: '100%',
+      width: `${isVoiceActive ? Math.min(micLevel * 4, 100) : 0}%`, 
+      backgroundColor: '#ef4444', 
+      boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
+      transition: 'width 0.15s ease-out', 
+    },
     imageArea: {
-      display: 'contents',
+      flex: 1,
+      width: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      overflow: 'hidden',
     },
     imageContainer: {
       position: 'relative',
@@ -186,7 +309,6 @@ function App() {
       objectFit: 'contain',
       display: 'block',
       transformOrigin: '50% 50%',
-      transform: 'translate(${imageOffset.x}%, ${imageOffset.y + 2}%) scale(${zoomLevel * 2.0})',
       transition: 'transform 0.18s ease-out',
     },
     gridOverlay: {
@@ -230,72 +352,6 @@ function App() {
       color: 'rgba(56, 189, 248, 0.9)',
       fontFamily: 'monospace',
       textShadow: '1px 1px 3px #000',
-    },
-    rightStatusContainer: {
-      position: 'absolute',
-      top: '20px',
-      right: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-end',
-      gap: '8px',
-      zIndex: 10,
-    },
-    statusLedContainer: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: 'rgba(12, 15, 29, 0.85)',
-      padding: '6px 12px',
-      borderRadius: '20px',
-      border: '1px solid #1e293b',
-      backdropFilter: 'blur(4px)',
-      fontSize: '0.8rem',
-      fontWeight: '500',
-      letterSpacing: '0.5px',
-    },
-    statusLed: {
-      width: '10px',
-      height: '10px',
-      borderRadius: '50%',
-      backgroundColor: backendError ? '#ef4444' : '#10b981',
-      boxShadow: backendError ? '0 0 10px #ef4444' : '0 0 10px #10b981',
-      transition: 'background-color 0.3s ease',
-    },
-    micHud: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: 'rgba(12, 15, 29, 0.85)',
-      padding: '6px 14px',
-      borderRadius: '20px',
-      border: isVoiceActive ? '1px solid #ef4444' : '1px solid #1e293b',
-      boxShadow: isVoiceActive ? '0 0 12px rgba(239, 68, 68, 0.4)' : 'none',
-      backdropFilter: 'blur(4px)',
-      width: '150px',
-      boxSizing: 'border-box',
-      transition: 'all 0.2s ease',
-    },
-    micLabel: {
-      fontSize: '0.7rem',
-      fontFamily: 'monospace',
-      color: isVoiceActive ? '#ef4444' : '#64748b', 
-      fontWeight: 'bold',
-      transition: 'all 0.2s ease',
-    },
-    micBarContainer: {
-      flex: 1,
-      height: '6px',
-      backgroundColor: '#1e293b',
-      borderRadius: '3px',
-      overflow: 'hidden',
-    },
-    micBarFill: {
-      height: '100%',
-      width: `${isVoiceActive ? Math.min(micLevel * 4, 100) : 0}%`, 
-      backgroundColor: '#ef4444', 
-      boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
-      transition: 'width 0.15s ease-out', 
     }
   };
 
@@ -306,66 +362,109 @@ function App() {
     <div style={styles.container}>
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader}>CT Slices ({allSlices.length})</div>
-        {allSlices.map((sliceName, idx) => {
-          const isActive = idx === currentSlice.index;
-          return (
-            <div
-              key={idx}
-              ref={(el) => (thumbnailRefs.current[idx] = el)}
-              style={{
-                ...styles.thumbnailWrapper,
-                ...(isActive ? styles.thumbnailActive : {}),
-              }}
-            >
-              <img
-                src={`/ct/${sliceName}`}
-                alt={`Thumb ${idx}`}
+        {/* CT SLICES */}
+        <div style={styles.slicesSection}>
+          <div style={styles.sidebarHeader}>CT Slices ({allSlices.length})</div>
+          {allSlices.map((sliceName, idx) => {
+            const isActive = idx === currentSlice.index;
+            return (
+              <div
+                key={idx}
+                ref={(el) => (thumbnailRefs.current[idx] = el)}
                 style={{
-                  ...styles.thumbnailImg,
-                  ...(isActive ? styles.thumbnailImgActive : {}),
+                  ...styles.thumbnailWrapper,
+                  ...(isActive ? styles.thumbnailActive : {}),
                 }}
-              />
-              <div style={styles.thumbnailLabel}># {String(idx).padStart(2, '0')}</div>
+              >
+                <img
+                  src={`/ct/${sliceName}`}
+                  alt={`Thumb ${idx}`}
+                  style={{
+                    ...styles.thumbnailImg,
+                    ...(isActive ? styles.thumbnailImgActive : {}),
+                  }}
+                />
+                <div style={styles.thumbnailLabel}># {String(idx).padStart(2, '0')}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* AI ANALYSIS OVERLAY */}
+        <div style={styles.aiSection}>
+          <div style={styles.aiHeader}>
+            <div style={styles.aiTitle}>
+              <div style={{alignItems: 'center', justifyContent: 'center', display: 'flex'}}></div>
+              AI-Assistant
             </div>
-          );
-        })}
+            <span style={styles.aiBadge}>LIVE</span>
+          </div>
+
+          <div style={styles.aiContentBox}>
+            <p style={{ margin: '0 0 8px 0', color: '#38bdf8', fontWeight: 'bold' }}>
+              [AUTOMATED CT FINDINGS]
+            </p>
+            <p style={{ margin: '0 0 8px 0' }}>
+              • Segment 4A: Keine Auffälligkeiten im Weichgewebe festgestellt.
+            </p>
+            <p style={{ margin: '0 0 8px 0' }}>
+              • Thorax-Scan Slice #{String(currentSlice.index).padStart(2, '0')}: Dichteinheiten liegen im normalen Hounsfield-Bereich (HU: 30 - 50).
+            </p>
+            <p style={{ margin: '0 0 8px 0' }}>
+              • Hinweis: Leichte Asymmetrie im lateralen Bereich beobachtet. Manuelle Nachprüfung in Raster B2 empfohlen.
+            </p>
+            <p style={{ margin: '0 0 8px 0', color: '#64748b' }}>
+              --- Zusätzliche Protokolldaten ---
+            </p>
+            <p style={{ margin: '0 0 8px 0' }}>
+              Algorithmus: MedVision-v2.4
+              <br />
+              Konfidenz: 94.8%
+              <br />
+              Status: Validiert
+            </p>
+            <p style={{ margin: 0 }}>
+              Klicken oder navigieren Sie per Sprachbefehl zu Grid "B2", um die Vergrößerung automatisch auf die Auffälligkeit zu fokussieren.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* MONITOR MAIN CONTENT AREA */}
       <div style={styles.mainContent}>
-        {/* HUD Overlay (Links oben) */}
-        <div style={styles.metaOverlay}>
-          <div>
-            <div>PATIENT ID: <span style={styles.metaVal}>{patientId}</span></div>
-            <div style={{ marginTop: '2px' }}>
-              VIEW: <span style={styles.metaVal}>{currentSlice.sliceName || 'Waiting...'}</span>
+        {/* TOP BAR / HUD OVERLAY */}
+        <div style={styles.topBar}>
+          <div style={styles.metaOverlay}>
+            <div>
+              <div>PATIENT ID: <span style={styles.metaVal}>{patientId}</span></div>
+              <div style={{ marginTop: '2px' }}>
+                VIEW: <span style={styles.metaVal}>{currentSlice.sliceName || 'Waiting...'}</span>
+              </div>
+            </div>
+            <div style={styles.metaSubInline}>
+              INDEX: {currentSlice.index}<br />
+              MODE: MPR 2D | ZOOM: {zoomLevel.toFixed(1)}x<br />
+              GRID: 4x4 {selectedCell ? `[SEL: ${selectedCell}]` : ''}
             </div>
           </div>
-          <div style={styles.metaSubInline}>
-            INDEX: {currentSlice.index}<br />
-            MODE: MPR 2D | ZOOM: {zoomLevel.toFixed(1)}x<br />
-            GRID: 4x4 {selectedCell ? `[SEL: ${selectedCell}]` : ''}
+
+          <div style={styles.rightStatusContainer}>
+            <div style={styles.statusLedContainer}>
+              <div style={styles.statusLed}></div>
+              <span style={{ color: backendError ? '#ef4444' : '#10b981' }}>
+                {backendError ? 'SERVER DISCONNECTED' : 'SERVER ONLINE'}
+              </span>
+            </div>
+            <div style={styles.micHud}>
+              <span style={styles.micLabel}>{isVoiceActive ? 'REC' : 'MIC'}</span>
+              <div style={styles.micBarContainer}>
+                <div style={styles.micBarFill}></div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* HUD Overlay (Rechts oben) */}
-        <div style={styles.rightStatusContainer}>
-          <div style={styles.statusLedContainer}>
-            <div style={styles.statusLed}></div>
-            <span style={{ color: backendError ? '#ef4444' : '#10b981' }}>
-              {backendError ? 'SERVER DISCONNECTED' : 'SERVER ONLINE'}
-            </span>
-          </div>
-          <div style={styles.micHud}>
-            <span style={styles.micLabel}>{isVoiceActive ? 'REC' : 'MIC'}</span>
-            <div style={styles.micBarContainer}>
-              <div style={styles.micBarFill}></div>
-            </div>
-          </div>
-        </div>
-
-        {/* CT Image Display Area */}
+        {/* CT IMAGE DISPLAY AREA (begins below the top bar) */}
         <div style={styles.imageArea}>
           {currentSlice.imageUrl ? (
             <div style={styles.imageContainer}>
