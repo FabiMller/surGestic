@@ -14,23 +14,26 @@ function App() {
 
   const thumbnailRefs = useRef({});
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:8000/current-slice');
-        if (!response.ok) throw new Error('API Error');
-        
-        const data = await response.json();
-        
-        if (data.all_slices) {
-          setAllSlices(data.all_slices);
-        }
+useEffect(() => {
+  const interval = setInterval(async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/current-slice');
+      if (!response.ok) throw new Error('API Error');
+      
+      const data = await response.json();
+      
+      if (data.all_slices && data.all_slices.length > 0) {
+        const sortedSlices = [...data.all_slices].sort((a, b) => 
+          a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        );
+        setAllSlices(sortedSlices);
+      }
 
-        setCurrentSlice({
-          index: data.index,
-          imageUrl: data.image_url,
-          sliceName: data.slice_name
-        });
+      setCurrentSlice({
+        index: data.index,
+        imageUrl: data.image_url,
+        sliceName: data.slice_name
+      });
         
         setIsVoiceActive(!!data.is_voice_active);
         setMicLevel(data.mic_level || 0); 

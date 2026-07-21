@@ -30,7 +30,9 @@ CT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)
 def get_ct_files():
     if not os.path.exists(CT_DIR):
         return []
-    return sorted([f for f in os.listdir(CT_DIR) if f.endswith('.png')])
+    # KORREKTUR: Unterstützt .png & .PNG und stellt strikt alphabetische Sortierung sicher
+    files = [f for f in os.listdir(CT_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    return sorted(files)
 
 
 class SliceUpdate(BaseModel):

@@ -1,16 +1,3 @@
-"""
-Synthetic (procedural) CT-style test image generator.
-
-Generates a series of purely synthetic, high-resolution test images with a
-"CT look" (grayscale, noise, soft tissue transitions, bone-like structures).
-These are NOT real medical scans or real patient data - all values, IDs and
-structures are made up and serve only as visual test material for the
-gesture-/voice-controlled viewer.
-
-Resolution: 2048x2048 px -> pixel-sharp on a MacBook Pro Retina display
-(including fullscreen), since it's well above the native window size.
-"""
-
 import os
 import cv2
 import numpy as np
@@ -20,7 +7,7 @@ import numpy as np
 # ---------------------------------------------------------------------------
 RES = 2048                     # edge length in pixels (square)
 NUM_SLICES = 12                # number of slices in the series
-target_dir = os.path.join("..", "assets", "ct")
+target_dir = os.path.join("..", "frontend", "public", "ct")
 os.makedirs(target_dir, exist_ok=True)
 
 CENTER = (RES // 2, RES // 2)
@@ -180,7 +167,7 @@ def generate_slice(i, total):
 
     put("ID: TEST-ID-12345678", (20, 30), 0.5, green)
     put("SYNTHETIC_TEST_SUBJECT", (20, 50), 0.4, (200, 200, 200))
-    put(f"SLICE: {i + 1}/{total}", (380, 30), 0.5, cyan)
+    put(f"SLICE: {i + 1:03d}/{total:03d}", (380, 30), 0.5, cyan)
     put("KV: 120 / MA: 240", (360, 50), 0.4, gray)
     put("R", (20, 262), 0.6, white)
     put("L", (480, 262), 0.6, white)
@@ -198,16 +185,15 @@ def generate_slice(i, total):
 
 
 def main():
+    generated_files = []
     for i in range(NUM_SLICES):
         img = generate_slice(i, NUM_SLICES)
-        filename = os.path.join(target_dir, f"slice_{i + 1}.png")
+        filename = os.path.join(target_dir, f"slice_{i + 1:03d}.png")
         cv2.imwrite(filename, img)
-        print(f"Synthetic CT test image generated: {filename}")
+        generated_files.append(filename)
+        print(f"Generated: {filename}")
 
-    print(f"\nDone! Generated {NUM_SLICES} slices at {RES}x{RES}px "
-          f"(sharp on MacBook Pro Retina displays in fullscreen).")
-    print("Note: purely synthetic, procedurally generated test material, not real scans.")
-
+    print(f"\nDone! Generated {NUM_SLICES} slices in {target_dir}")
 
 if __name__ == "__main__":
     main()
