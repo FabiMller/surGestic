@@ -31,3 +31,5 @@ end tell
 EOF
 
 echo "✨ Alle App-Terminals wurden erfolgreich geschlossen!"
+
+# use " ./stop_all.sh   " to stop all processes and close the terminal windows.

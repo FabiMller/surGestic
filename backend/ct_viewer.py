@@ -117,6 +117,11 @@ def reset_interaction():
 def main():
     global current_slice_idx
     cap = cv2.VideoCapture(0)
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
     if not cap.isOpened():
         print("Error: Camera could not be opened.")
         return
@@ -235,13 +240,13 @@ def main():
                     for idx, point in enumerate(points):
                         if is_voice_active:
                             color = (255, 0, 0)
-                            radius = 7 if idx in [4, 8] else 4
+                            radius = 2 if idx in [4, 8] else 2
                         elif is_pinching and idx in [4, 8]:
                             color = (0, 0, 255)
-                            radius = 7
+                            radius = 2
                         else:
                             color = (0, 255, 0)
-                            radius = 4
+                            radius = 2
                         cv2.circle(frame, point, radius, color, -1)
 
                     current_y = index_tip.y
@@ -382,7 +387,8 @@ def main():
             
             cv2.imshow('Kamera-Feed (OP-Gesten)', frame)
             if ct_image is not None:
-                cv2.imshow('Steriler Monitor (CT-Viewer)', ct_image)
+                small_ct = cv2.resize(ct_image, (300, 300))
+                cv2.imshow('Steriler Monitor (CT-Viewer)', small_ct)
             
             if cv2.waitKey(1) & 0xFF == ord('q'): 
                 break
