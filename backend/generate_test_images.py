@@ -5,11 +5,11 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-RES = 2048                     # edge length in pixels (square)
-NUM_SLICES = 12                # number of slices in the series
-target_dir = os.path.join("..", "frontend", "public", "ct")
+RES = 2048
+NUM_SLICES = 12
+script_dir = os.path.dirname(os.path.abspath(__file__))
+target_dir = os.path.join(script_dir, "..", "frontend", "public", "ct")
 os.makedirs(target_dir, exist_ok=True)
-
 CENTER = (RES // 2, RES // 2)
 rng = np.random.default_rng(42)  # fixed seed -> reproducible series
 

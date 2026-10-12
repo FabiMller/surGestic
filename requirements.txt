@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+mediapipe
+opencv-python
+numpy
+requests
+sounddevice
+vosk

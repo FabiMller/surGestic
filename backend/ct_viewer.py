@@ -116,7 +116,7 @@ def reset_interaction():
 
 def main():
     global current_slice_idx
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
