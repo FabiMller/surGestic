@@ -182,7 +182,7 @@ def main():
         except Exception as e:
             print(f"❌ Audio Error: {e}")
 
-    print("🚀 Gesture control active. HOLD double-pinch for voice input.")
+    print("Gesture control active :)")
 
     with HandLandmarker.create_from_options(options) as landmarker:
         while cap.isOpened():
@@ -204,7 +204,7 @@ def main():
                 last_y = None
                 if is_voice_active:
                     is_voice_active = False
-                    print("🎙️ Voice control stopped (Hand lost).")
+                    print("Voice control stopped :(")
                     send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
 
             hand_is_currently_pinching = False
@@ -220,7 +220,7 @@ def main():
                     index_tip = hand_landmarks[8]
 
                     distance = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-                    is_pinching = distance < 0.02
+                    is_pinching = distance < 0.03
                     hand_is_currently_pinching = is_pinching
                     pinch_position = ((thumb_tip.x + index_tip.x) / 2, (thumb_tip.y + index_tip.y) / 2)
 
@@ -231,7 +231,7 @@ def main():
                             can_select_field = True
                             last_y = None  
                             audio_queue.queue.clear()
-                            print("🎙️ Listening (e.g. 'A 4')...")
+                            print("Listening...")
                             send_index_to_api(current_slice_idx, is_voice_active=True, mic_level=0)
 
                         last_pinch_time = current_time
@@ -278,7 +278,7 @@ def main():
                                 interaction["zoom_origin_x"] = 50.0
                                 interaction["zoom_origin_y"] = 50.0
                                 last_action_time = current_time
-                                print(f"<- Previous slice (Swipe UP): {ct_files[current_slice_idx]}")
+                                print(f"Previous slice: {ct_files[current_slice_idx]}")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                                     
                             elif y_diff > 0.04:
@@ -292,7 +292,7 @@ def main():
                                 interaction["zoom_origin_x"] = 50.0
                                 interaction["zoom_origin_y"] = 50.0
                                 last_action_time = current_time
-                                print(f"-> Next slice (Swipe DOWN): {ct_files[current_slice_idx]}")
+                                print(f"Next slice: {ct_files[current_slice_idx]}")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                         
                         last_y = current_y
@@ -324,7 +324,7 @@ def main():
                                 can_select_field = False
                                 is_voice_active = False
                                 smoothed_mic_level = 0.0
-                                print("🎙️ [VOICE COMMAND] Reset to default view.")
+                                print("[VOICE COMMAND] Reset to default view.")
                                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                             else:
                                 selected_cell = process_voice_input(recognized_text)
@@ -342,7 +342,7 @@ def main():
                                     can_select_field = False
                                     is_voice_active = False
                                     smoothed_mic_level = 0.0
-                                    print(f"🎙️ [VOICE COMMAND] Grid selected: {selected_cell}")
+                                    print(f"[VOICE COMMAND] recognized: {selected_cell}")
                                     send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
                     
                     if amplitudes:
@@ -374,7 +374,7 @@ def main():
                 if recognizer:
                     result = json.loads(recognizer.Result())
                     process_voice_input(result.get("text", ""))
-                print("🎙️ Voice control stopped.")
+                print("Voice control stopped.")
                 send_index_to_api(current_slice_idx, is_voice_active=False, mic_level=0)
 
             if not hand_is_currently_pinching and is_zooming:
